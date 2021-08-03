@@ -121,7 +121,9 @@ class FakeCam:
         background_mask_update_speed: int,
         use_sigmoid: bool,
         threshold: int,
-        postprocess: bool
+        postprocess: bool,
+        model_selection: int,
+        segmentation_mask: float
     ) -> None:
         self.no_background = no_background
         self.use_foreground = use_foreground
@@ -145,6 +147,8 @@ class FakeCam:
         self.use_sigmoid = use_sigmoid
         self.threshold = threshold
         self.postprocess = postprocess
+        self.model_selection = model_selection
+        self.segmentation_mask = segmentation_mask
         self.real_cam = RealCam(self.webcam_path,
                                 self.width,
                                 self.height,
@@ -159,7 +163,7 @@ class FakeCam:
         self.inverted_foreground_mask = None
         self.images: Dict[str, Any] = {}
         self.classifier = mp.solutions.selfie_segmentation.SelfieSegmentation(
-            model_selection=1)
+            model_selection=model_selection)
         self.paused = False
         self.ondemand = ondemand
         self.v4l2loopback_path = v4l2loopback_path
@@ -306,6 +310,10 @@ then scale & crop the image so that its pixels retain their aspect ratio."""
                 self.old_mask = mask
             mask = mask * self.MRAR + self.old_mask * (1.0 - self.MRAR)
             self.old_mask = mask
+
+        # segmentation_mask
+        #if self.segmentation_mask is not None:
+        #    mask = self.classifier.process(frame).segmentation_mask > self.segmentation_mask
 
         # Get background image
         if self.no_background is False:
@@ -466,6 +474,10 @@ def parse_args():
                         help="The minimum percentage threshold for accepting a pixel as foreground")
     parser.add_argument("--no-postprocess", action="store_false",
                         help="Disable postprocessing (masking dilation and blurring)")
+    parser.add_argument("--model-selection", default="1", type=int,
+                        help="Model selection 0 or 1 (default 1)")
+    parser.add_argument("--segmentation-mask", type=float,
+                        help="Segmentation mask between 0.1 and 1")
     return parser.parse_args()
 
 
@@ -522,7 +534,9 @@ def main():
             args.background_mask_update_speed),
         use_sigmoid=args.use_sigmoid,
         threshold=getPercentageFloat(args.threshold),
-        postprocess=args.no_postprocess
+        postprocess=args.no_postprocess,
+        model_selection=args.model_selection,
+        segmentation_mask=args.segmentation_mask
     )
     signal.signal(signal.SIGINT, partial(sigint_handler, cam))
     signal.signal(signal.SIGQUIT, partial(sigquit_handler, cam))
